@@ -108,10 +108,11 @@ uint16_t *res1 = calloc(samples1 * nsets, sizeof(uint16_t));//samples从输入�
 l1_repeatedprobe(l1, samples1, res1, 0);
  for (int i=0;i<L1_SETS;i++){
    for(int j=0;j<samples1;j++){
+     if(res[i*samples1+j]<100)
      sum[i]=sum[i]+res[i*samples1+j];
    }
    ave[i]=sum[i]/samples1;
-   //printf("sum :%d   ave: %d   \n",sum[i],ave[i]);
+   printf("sum :%d   ave: %d   \n",sum[i],ave[i]);
  }
 
  //访问cache set，并记录所需的访问时间。

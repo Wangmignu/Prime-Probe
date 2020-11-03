@@ -414,8 +414,8 @@ static int probemap(l3pp_t l3) {
   if ((l3->l3info.flags & L3FLAG_NOPROBE) != 0)
     return 0;
   vlist_t pages = vl_new();
-  for (int i = 0; i < l3->l3info.bufsize; i+= l3->groupsize * L3_CACHELINE) 
-    vl_push(pages, l3->buffer + i);
+  for (int i = 0; i < l3->l3info.bufsize; i+= l3->groupsize * L3_CACHELINE) //对于大页面，i每次增长64KB,对于标准页大小，i每次增长4KB
+    vl_push(pages, l3->buffer + i);//将每个页的首地址push进pages的data数组
   vlist_t groups = map(l3, pages);
 
   //Store map results
@@ -466,15 +466,16 @@ l3pp_t l3_prepare(l3info_t l3info) {
   char *buffer = MAP_FAILED;
 #ifdef HUGEPAGES
   if ((l3->l3info.flags & L3FLAG_NOHUGEPAGES) == 0) {
-    bufsize = (l3->l3info.bufsize + HUGEPAGESIZE - 1) & ~HUGEPAGEMASK;
-    l3->groupsize = L3_GROUPSIZE_FOR_HUGEPAGES;	
+    bufsize = (l3->l3info.bufsize + HUGEPAGESIZE - 1) & ~HUGEPAGEMASK;//当使用大页面时，将页偏移的位数掩盖掉，高位为bufsize(L3的大小乘2)
+    printf("l3_prepare : bufsize %x\n",bufsize);
+    l3->groupsize = L3_GROUPSIZE_FOR_HUGEPAGES;	//每个大页面的包含的group的大小是1024个
     buffer = mmap(NULL, bufsize, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE|HUGEPAGES, -1, 0);
   }
 #endif
 
   if (buffer == MAP_FAILED) {
     bufsize = l3->l3info.bufsize;
-    l3->groupsize = L3_SETS_PER_PAGE;
+    l3->groupsize = L3_SETS_PER_PAGE;//每个页的set的数量为64个(64*64B=4KB)
     buffer = mmap(NULL, bufsize, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE, -1, 0);//-1对应的参数是fd。此时须指定flags参数中的MAP_ANON，表明进行的是匿名映射（不涉及具体的文件名，避免了文件的创建及打开，很显然只能用于具有亲缘关系的进程间通信）
   }
   if (buffer == MAP_FAILED) {
@@ -597,6 +598,7 @@ void l3_bprobecount(l3pp_t l3, uint16_t *results) {
 
 // Returns the number of probed sets in the LLC
 int l3_getSets(l3pp_t l3) {
+  printf("the number of probed sets in the LLC : %d\n",l3->ngroups * l3->groupsize);
   return l3->ngroups * l3->groupsize;
 }
 

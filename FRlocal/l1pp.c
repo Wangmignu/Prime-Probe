@@ -532,7 +532,7 @@ static const u32 Td3[256] = {
 void test0(){
     for(int i=0;i<600;i++){
         int x;
-        for(int j=16;j<31;j++){
+        for(int j=0;j<1;j++){
             x=Te0[j];
         }
      }
@@ -558,14 +558,22 @@ void test2(){
 int main(){
     int x,y;
     int round=0;
+    int k[]={0,1,1,1,0,
+    1,0,1,0,0,
+    1,1,1,0,0,
+    0,1,0,0,0,
+    0,0,0,0,0,
+    1,1,1,1,1,};
     while(1){
-        for(int j=0;j<1000;j++){
+        for(int j=0;j<10000;j++){
             for(int i=0;i<1600;i++){
-                if(i%2==0)
+                for (int m=0;m<30;m++){
+                if(k[m]==0)
                     test0();
-
+                else 
                 test1();
-                for(int k=0;k<800;k++);
+                }
+                //for(int k=0;k<800;k++){int s=Te0[0];};
                 //test2();
                 /*for (int k=0;k<4;k++){
                 x=Te0[k];
