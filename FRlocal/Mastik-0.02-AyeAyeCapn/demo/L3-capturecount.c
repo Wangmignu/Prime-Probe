@@ -34,8 +34,10 @@ int main(int ac, char **av) {
 
   int nsets = l3_getSets(l3);
   int nmonitored = nsets/64;
+  //int nmonitored=nsets/1024;
 
-  for (int i = 17; i < nsets; i += 64)
+//for (int i = 23; i < nsets; i += 64)
+  for (int i = 34; i < nsets; i += 64)
     l3_monitor(l3, i);
 
 

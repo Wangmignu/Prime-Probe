@@ -530,65 +530,88 @@ static const u32 Td3[256] = {
     0xcb84617bU, 0x32b670d5U, 0x6c5c7448U, 0xb85742d0U,
 };
 void test0(){
-    for(int i=0;i<600;i++){
+    for(int i=0;i<1000;i++){
         int x;
-        for(int j=0;j<1;j++){
+        for(int j=0;j<4;j++){
             x=Te0[j];
         }
      }
 }
 
-void test1(){
-    for(int i=0;i<600;i++){
+void test2(){
+    for(int i=0;i<300;i++){
         int x;
-        for(int j=0;j<1;j++){
+        x=Te2[0];
+     }
+}
+
+void test3(){
+    for(int i=0;i<2000;i++){
+        int x;
+        x=Te2[0];
+     }
+}
+
+void test1(){
+    for(int i=0;i<1000;i++){
+        int x;
+        for(int j=0;j<4;j++){
             x=Te1[j];
         }
 
      }
 }
 
-void test2(){
-    for(int i=0;i<3000;i++){
-        int x;
-        x=Te2[0];
-     }
+typedef unsigned char		uint8_t;
+typedef unsigned short int	uint16_t;
+#ifndef __uint32_t_defined
+typedef unsigned int		uint32_t;
+# define __uint32_t_defined
+#endif
+#if __WORDSIZE == 64
+typedef unsigned long int	uint64_t;
+#else
+__extension__
+typedef unsigned long long int	uint64_t;
+#endif
+static inline uint64_t rdtscp64() {
+  uint32_t low, high;
+  asm volatile ("rdtscp": "=a" (low), "=d" (high) :: "ecx");
+  return (((uint64_t)high) << 32) | low;
 }
 
 int main(){
     int x,y;
     int round=0;
-    int k[]={0,1,1,1,0,
+    /*int k[]={0,1,1,1,0,
     1,0,1,0,0,
     1,1,1,0,0,
     0,1,0,0,0,
     0,0,0,0,0,
     1,1,1,1,1,};
+    */
+   int k[]={0,0,0,0,0,
+    1,1,1,1,1,
+    0,0,0,0,0,
+    1,1,1,1,1,
+    0,0,0,0,0,
+    1,1,1,1,1,};
+int k1[]={0,0,0,0,0,1,0,1,0,1,0,1,0,1,0,0,0,1,1,0,0,1,1,0,0,1,1,1,1,1};
+    
     while(1){
-        for(int j=0;j<10000;j++){
+        for(int j=0;j<1000;j++){
             for(int i=0;i<1600;i++){
                 for (int m=0;m<30;m++){
-                if(k[m]==0)
+                if(k[m]==0){
+                    uint64_t prev_time = rdtscp64();
                     test0();
-                else 
-                test1();
+                    uint64_t ntime = rdtscp64();
+                    printf("time test 0  %d\n",ntime-prev_time);
                 }
-                //for(int k=0;k<800;k++){int s=Te0[0];};
-                //test2();
-                /*for (int k=0;k<4;k++){
-                x=Te0[k];
-                //x=Te3[k];
+                else {
+                    test1();
+                }                   
                 }
-                for (int k=0;k<4;k++){
-                //x=Te1[k];
-                x=Te3[k];
-                }
-                for (int k=0;k<4;k++){
-                x=Te2[k];
-                //x=Te3[k];
-                }
-                */
-                
             }
         }
         round++;

@@ -36,6 +36,7 @@
 #include "low.h"
 
 #define CHECKTIMES 16
+//#define DEBUG
 
 /*
  * Intel documentation still mentiones one slice per core, but
@@ -55,7 +56,7 @@
  */
 #define L3_SETS_PER_SLICE 2048
 #define L3_GROUPSIZE_FOR_HUGEPAGES 1024
-
+//#define L3_GROUPSIZE_FOR_HUGEPAGES 2048
 // The number of cache sets in each page
 #define L3_SETS_PER_PAGE 64
 
@@ -86,6 +87,11 @@
 #define SLICE_MASK_0 0x1b5f575440UL
 #define SLICE_MASK_1 0x2eb5faa880UL
 #define SLICE_MASK_2 0x3cccc93100UL
+
+
+
+
+
 
 struct l3pp {
   struct l3info l3info;
@@ -172,6 +178,7 @@ static void fillL3Info(l3pp_t l3) {
     if (l3->l3info.bufsize < 10 * 1024 * 1024)
       l3->l3info.bufsize = 10 * 1024 * 1024;
   }
+  printf("l3 buff size fillL3Info %x,  %d \n",l3->l3info.bufsize,l3->l3info.bufsize);
 }
 
 #if 0
@@ -281,12 +288,12 @@ static int timedwalk(void *list, register void *candidate) {
   clflush(c2);
   memaccess(candidate);
   for (int i = 0; i < CHECKTIMES * (debug ? 20 : 1); i++) {
-    walk(list, 20);
+    walk(list, 20);//遍历list，找到20个list中与list相同的值，就停止。也就是es这整个链表访问了20次
     void *p = LNEXT(c2);
     uint32_t time = memaccesstime(p);
     ts_add(ts, time);
   }
-  int rv = ts_median(ts);
+  int rv = ts_median(ts);//zh找一个所有访问时间所占次数的中间值，返回这个中间值所对应的索引，也就是访问时间。
 #ifdef DEBUG
   if (!--debugl) {
     debugl=1000;
@@ -301,6 +308,7 @@ static int timedwalk(void *list, register void *candidate) {
   }
 #endif //DEBUG
   ts_free(ts);
+  //printf("rv  =     : %d \n",rv);
   return rv;
 }
 
@@ -310,21 +318,27 @@ static int checkevict(vlist_t es, void *candidate) {
   for (int i = 0; i < vl_len(es); i++) 
     LNEXT(vl_get(es, i)) = vl_get(es, (i + 1) % vl_len(es));
   int timecur = timedwalk(vl_get(es, 0), candidate);
+  //printf("checkevict   timecur %d\n",timecur);
   return timecur > L3_THRESHOLD;
 }
 
 
 static void *expand(vlist_t es, vlist_t candidates) {
+  //printf("enter expand ============\n");
   while (vl_len(candidates) > 0) {
     void *current = vl_poprand(candidates);
-    if (checkevict(es, current))
+    if (checkevict(es, current)){
+      //printf("leave expand  if return ============\n");
       return current;
+    }
     vl_push(es, current);
   }
+  //printf("leave expand ============\n");
   return NULL;
 }
 
 static void contract(vlist_t es, vlist_t candidates, void *current) {
+  //printf("enter contract **************\n");
   for (int i = 0; i < vl_len(es);) {
     void *cand = vl_get(es, i);
     vl_del(es, i);
@@ -336,6 +350,7 @@ static void contract(vlist_t es, vlist_t candidates, void *current) {
       i++;
     }
   }
+  //printf("leave contract **************\n");
 }
 
 static void collect(vlist_t es, vlist_t candidates, vlist_t set) {
@@ -358,13 +373,20 @@ static vlist_t map(l3pp_t l3, vlist_t lines) {
   int nlines = vl_len(lines);
   int fail = 0;
   while (vl_len(lines)) {
+    //printf("while start lines long %d\n",vl_len(lines));
     assert(vl_len(es) == 0);
 #ifdef DEBUG
     int d_l1 = vl_len(lines);
 #endif // DEBUG
     if (fail > 5) 
       break;
-    void *c = expand(es, lines);
+    void *c = expand(es, lines);//随机从lines中取一个值，如果不与es冲突，就放到es中
+    for(int i=0;i<vl_len(es);i++){
+    //printf("es 1 . data %d  is  %x\n",i,es->data[i]);
+  }
+  for(int i=0;i<vl_len(lines);i++){
+    //printf("line 1 . data %d  is  %x\n",i,lines->data[i]);
+  }
 #ifdef DEBUG
     int d_l2 = vl_len(es);
 #endif //DEBUG
@@ -375,33 +397,62 @@ static vlist_t map(l3pp_t l3, vlist_t lines) {
       printf("set %3d: lines: %4d expanded: %4d c=NULL\n", vl_len(groups), d_l1, d_l2);
 #endif // DEBUG
       fail++;
+      //printf("continue 1  ---------------\n");
       continue;
     }
+    contract(es, lines, c);//search eviction set in es for c,per slice a es .es中本来是六个片的冲突集，现在把他们分开。
+   // printf("after contract 1 es long  %d\n",vl_len(es));
     contract(es, lines, c);
+    //printf("after contract 2 es long  %d\n",vl_len(es));
     contract(es, lines, c);
+    //printf("after contract 3 es long  %d\n",vl_len(es));
+    /*contract(es, lines, c);
+     printf("after contract 4 es long  %d\n",vl_len(es));
     contract(es, lines, c);
+     printf("after contract 5 es long  %d\n",vl_len(es));
+    contract(es, lines, c);
+     printf("after contract 6 es long  %d\n",vl_len(es));*/
+
+    //printf("c is %x!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n",c);
+      for(int i=0;i<vl_len(es);i++){
+    //printf("es 2  . data %d  is  %x\n",i,es->data[i]);
+  }
+ // printf("lines long ------ %d\n",vl_len(lines));
 #ifdef DEBUG
     int d_l3 = vl_len(es);
 #endif //DEBUG
+    
     if (vl_len(es) > l3->l3info.associativity || vl_len(es) < l3->l3info.associativity - 3) {
+     // printf("es long  2 %d\n",vl_len(es));
       while (vl_len(es))
-	vl_push(lines, vl_del(es, 0));
+	        vl_push(lines, vl_del(es, 0));
+          
+         /*int esl=vl_len(es);
+         for (int i=0;i<esl;i++){
+           //printf("es long %d\n",vl_len(es));
+           vl_push(lines, vl_del(es, 0));
+         }*/
+      
 #ifdef DEBUG
       printf("set %3d: lines: %4d expanded: %4d contracted: %2d failed\n", vl_len(groups), d_l1, d_l2, d_l3);
 #endif // DEBUG
       fail++;
+      //printf("continue 2  ---------------\n");
       continue;
     } 
     fail = 0;
     vlist_t set = vl_new();
     vl_push(set, c);
-    collect(es, lines, set);
+    collect(es, lines, set);// find addr in lines that collict with es,and insert them to set
     while (vl_len(es))
       vl_push(set, vl_del(es, 0));
 #ifdef DEBUG
     printf("set %3d: lines: %4d expanded: %4d contracted: %2d collected: %d\n", vl_len(groups), d_l1, d_l2, d_l3, vl_len(set));
 #endif // DEBUG
     vl_push(groups, set);
+          for(int i=0;i<vl_len(set);i++){
+    //printf("set  . data %d  is  %x\n",i,set->data[i]);
+  }
     if (l3->l3info.progressNotification) 
       (*l3->l3info.progressNotification)(nlines - vl_len(lines), nlines, l3->l3info.progressNotificationData);
   }
@@ -415,7 +466,11 @@ static int probemap(l3pp_t l3) {
     return 0;
   vlist_t pages = vl_new();
   for (int i = 0; i < l3->l3info.bufsize; i+= l3->groupsize * L3_CACHELINE) //对于大页面，i每次增长64KB,对于标准页大小，i每次增长4KB
-    vl_push(pages, l3->buffer + i);//将每个页的首地址push进pages的data数组
+    vl_push(pages, l3->buffer + i);//将每个页的首地址push进pages的data数组,大页面时循环480次
+
+  for(int i=0;i<480;i++){
+    //printf("pages . data %d  is  %x\n",i,pages->data[i]);
+  }
   vlist_t groups = map(l3, pages);
 
   //Store map results
@@ -467,9 +522,10 @@ l3pp_t l3_prepare(l3info_t l3info) {
 #ifdef HUGEPAGES
   if ((l3->l3info.flags & L3FLAG_NOHUGEPAGES) == 0) {
     bufsize = (l3->l3info.bufsize + HUGEPAGESIZE - 1) & ~HUGEPAGEMASK;//当使用大页面时，将页偏移的位数掩盖掉，高位为bufsize(L3的大小乘2)
-    printf("l3_prepare : bufsize %x\n",bufsize);
+    //printf("l3_prepare : bufsize addr %x\n",bufsize);
     l3->groupsize = L3_GROUPSIZE_FOR_HUGEPAGES;	//每个大页面的包含的group的大小是1024个
     buffer = mmap(NULL, bufsize, PROT_READ|PROT_WRITE, MAP_ANON|MAP_PRIVATE|HUGEPAGES, -1, 0);
+    printf("buffer   addr %x\n",buffer);
   }
 #endif
 
@@ -598,6 +654,7 @@ void l3_bprobecount(l3pp_t l3, uint16_t *results) {
 
 // Returns the number of probed sets in the LLC
 int l3_getSets(l3pp_t l3) {
+  printf("l3 groups: %d,l3 groupsize %d\n",l3->ngroups,l3->groupsize);
   printf("the number of probed sets in the LLC : %d\n",l3->ngroups * l3->groupsize);
   return l3->ngroups * l3->groupsize;
 }
@@ -668,6 +725,8 @@ int l3_repeatedprobecount(l3pp_t l3, int nrecords, uint16_t *results, int slot) 
 	l3_bprobecount(l3, results);
       even = !even;
     }
+    uint64_t n_time = rdtscp64();
+    //printf("time   %d\n",n_time-prev_time);
     if (slot > 0) {
       prev_time += slot;
       missed = slotwait(prev_time);
